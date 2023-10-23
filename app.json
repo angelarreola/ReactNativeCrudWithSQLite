@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "p6CrudRN",
+    "name": "English Words",
     "slug": "p6CrudRN",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon2.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash2.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,12 +19,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon2.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.angelarreolagg.p6CrudRN",
+      "jsEngine": "jsc"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f0b11196-e069-4a04-a2d0-320692d53183"
+      }
+    },
+    "jsEngine": "hermes"
   }
 }
