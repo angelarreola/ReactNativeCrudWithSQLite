@@ -1,37 +1,30 @@
-import React, { useState, useEffect } from "react";
-import {
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  Button,
-  Modal,
-  TouchableHighlight,
-  FlatList,
-} from "react-native";
-// import ColorPicker, { Panel1, Preview, OpacitySlider, HueSlider } from 'reanimated-color-picker';
-import { uid } from "uid";
-import Icon from "react-native-vector-icons/AntDesign";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import data from "./db.json";
+import { StatusBar } from "expo-status-bar";
+import { StyleSheet, Text, View, TextInput, Button, Modal, TouchableHighlight, FlatList, SafeAreaView } from "react-native";
+import * as SQLite from "expo-sqlite";
+import { useState, useEffect } from "react";
+import tw, { useDeviceContext, useAppColorScheme } from "twrnc";
+import Icon from 'react-native-vector-icons/AntDesign';
+import ColorPicker, { Panel1, Swatches, Preview, OpacitySlider, HueSlider } from 'reanimated-color-picker';
 
 export default function App() {
+
+  const db = SQLite.openDatabase('example3.db');
+
   const [isLoading, setIsLoading] = useState(false);
-  const [todos, setTodos] = useState(data.words);
+  const [todos, setTodos] = useState([]);
   const [currentTodo, setCurrentTodo] = useState({
     title: "",
     description: "",
-    color: "#E0FBFF",
+    color: "#E0FBFF" ,
   });
 
-  // const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  // const onSelectColor = ({ hex }) => {
-  //   if (hex) {
-  //     setCurrentTodo({ ...currentTodo, color: hex });
-  //   }
-  // };
+  const onSelectColor = ({ hex }) => {
+    // do something with the selected color.
+    setCurrentTodo({...currentTodo, color: hex});
+  };
+
 
   const handleChangeTitle = (value) => {
     setCurrentTodo({ ...currentTodo, title: value });
@@ -42,127 +35,177 @@ export default function App() {
   };
 
   useEffect(() => {
-    const saveDataToStorage = async () => {
-      try {
-        await AsyncStorage.setItem("data", JSON.stringify(data));
-      } catch (error) {
-        console.error("Error al guardar los datos: ", error);
-      }
-    };
+    db.transaction((tx) => {
+      tx.executeSql(
+        "CREATE TABLE IF NOT EXISTS words (id INTEGER PRIMARY KEY, title TEXT, description TEXT, color TEXT)"
+      );
+    });
 
-    saveDataToStorage();
-  }, [todos]);
+    db.transaction((tx) => {
+      tx.executeSql(
+        "SELECT * FROM words",
+        null,
+        (txObj, resultSet) => setTodos(resultSet.rows._array),
+        (txObj, error) => console.log(error)
+      );
+    });
+
+    console.log(todos);
+  }, []);
 
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <Text>Loading Todos...</Text>
+        <Text>Loading Words...</Text>
         <StatusBar style="auto" />
       </View>
     );
   }
 
+
   const addTodo = () => {
-    let existingTodos = [...todos];
-    existingTodos.push({ id: uid(), ...currentTodo });
-    setTodos(existingTodos);
-    setCurrentTodo({
-      title: "",
-      description: "",
-      color: "",
+    db.transaction((tx) => {
+      tx.executeSql(
+        "INSERT INTO words (title, description, color) values (?,?,?)",
+        [currentTodo.title, currentTodo.description, currentTodo.color],
+        (txObj, resultSet) => {
+          let existingTodos = [...todos];
+          existingTodos.push({ id: resultSet.insertId, ...currentTodo });
+          setTodos(existingTodos);
+          setCurrentTodo({
+            title: "",
+            description: "",
+            color: "",
+          });
+        },
+        (txObj, error) => console.log(error)
+      );
     });
   };
 
   const completeTodo = (id) => {
-    let existingTodos = [...todos].filter((todo) => todo.id !== id);
-    setTodos(existingTodos);
-  };
-
-  const updateWord = (id) => {
-    let existingWords = [...todos];
-    const indexToUpdate = existingWords.findIndex((word) => word.id === id);
-    currentTodo.id = id;
-    existingWords[indexToUpdate] = currentTodo;
-    setTodos(existingWords);
-    setCurrentTodo({
-      title: "",
-      description: "",
-      color: "",
+    db.transaction((tx) => {
+      tx.executeSql(
+        "DELETE FROM words WHERE id = ?",
+        [id],
+        (txObj, resultSet) => {
+          if (resultSet.rowsAffected > 0) {
+            let existingTodos = [...todos].filter((todo) => todo.id !== id);
+            setTodos(existingTodos);
+          }
+        },
+        (txObj, error) => console.log(error)
+      );
     });
   };
 
+  const updateWord = (id) => {
+    console.log('inicio');
+    db.transaction(tx => {
+      console.log(`${currentTodo.title} | ${currentTodo.description} | ${currentTodo.color} | ${id}`);
+      tx.executeSql('UPDATE words SET title = ?, description = ?, color = ? WHERE id = ?',
+        [currentTodo.title, currentTodo.description, currentTodo.color, id],
+        (txObj, resultSet) => {
+          if (resultSet.rowsAffected > 0) {
+            console.log('hecho');
+            let existingWords = [...todos];
+            const indexToUpdate = existingWords.findIndex(word => word.id === id);
+            currentTodo.id = id;
+            existingWords[indexToUpdate] = currentTodo;
+            console.log('------asddasdsa----------');
+            console.log(existingWords);
+            setTodos(existingWords);
+            setCurrentTodo({
+              title: "",
+              description: "",
+              color: "",
+            });
+          }
+        },
+        (txObj, error) => console.log(error))
+      }
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <View style={styles.formContainer}>
+    <View style={tw`bg-white h-full`}>
+      <View
+        style={tw`bg-white shadow-2xl py-10 px-10 mt-10 mb-5 mx-3 gap-5 rounded-xl`}
+      >
         <TextInput
-          style={styles.input}
+          style={tw`bg-slate-300 p-2 rounded-sm`}
           value={currentTodo.title.toString()}
           placeholder="Title"
           onChangeText={handleChangeTitle}
         />
         <TextInput
-          style={styles.input}
+          style={tw`bg-slate-300 p-2 rounded-sm`}
           value={currentTodo.description.toString()}
           placeholder="Description"
           multiline
           numberOfLines={3}
           onChangeText={handleChangeDescription}
         />
-        {/* <View style={styles.colorPickerButtonContainer}>
+        <View style={tw`mx-auto w-1/2`}>
           <Button
             title="Color Picker"
             onPress={() => setShowModal(true)}
-            color="#003f69"
+            color={"#003f69"}
           />
-        </View> */}
+        </View>
 
         <TouchableHighlight
-          style={styles.addButton}
+          style={tw`rounded-xl bg-[#260d33] p-1`}
           onPress={addTodo}
         >
-          <Text style={styles.addButtonText}>Add Word</Text>
+          <Text style={tw`text-white font-bold text-lg text-center uppercase`}>
+            Add Word
+          </Text>
         </TouchableHighlight>
       </View>
 
-      <Text style={styles.heading}>Words / Phrases</Text>
+      <Text style={tw`text-center text-xl uppercase border-b-2 mx-4 font-bold`}>
+        Words / Phrases
+      </Text>
 
       <FlatList
-        style={{width: '90%'}}
         data={todos}
         renderItem={({ item }) => {
+          console.log(item, item.id);
           return (
             <View
               key={item.id}
-              style={[styles.listItem, { backgroundColor: item.color || "#E0FBFF" }]}
+              style={tw`flex-row items-center justify-between mx-4 mt-5 p-4 gap-2 rounded-md bg-[${item.color ? item.color : '#E0FBFF'}]`}
             >
-              <Text style={styles.listItemText}>{item.title}</Text>
-              <Icon name="arrowright" size={20} color="#000" />
-              <Text style={styles.listItemText}>{item.description}</Text>
+              <Text style={tw`text-black`}>{item.title}</Text>
+              <Icon name="arrowright" size={20} color="#000000" />
+              <Text style={tw`text-black flex-1 m-4`}>{item.description}</Text>
               <TouchableHighlight
                 title=""
                 onPress={() => updateWord(item.id)}
-                style={styles.editButton}
+                style={tw`bg-[#260d33] p-2 rounded-lg`}
               >
-                <Icon name="edit" size={20} color="#FFF" />
+                <Icon name="edit" size={20} color="#FFFFFF" />
               </TouchableHighlight>
               <TouchableHighlight
                 title=""
                 onPress={() => completeTodo(item.id)}
-                style={styles.deleteButton}
+                style={tw`bg-[#260d33] p-2 rounded-lg`}
               >
-                <Icon name="delete" size={20} color="#FFF" />
+                <Icon name="delete" size={20} color="#FFFFFF" />
               </TouchableHighlight>
             </View>
           );
         }}
       />
 
-      {/* <Modal
+      <Modal
         visible={showModal}
         animationType="slide"
+        style={tw`bg-blue-600 w-full h-full`}
       >
-         <ColorPicker
-          style={{margin: 20}}
+        <ColorPicker
+          style={tw`m-10 p-10 gap-5`}
           value="red"
           onComplete={onSelectColor}
         >
@@ -171,10 +214,10 @@ export default function App() {
           <HueSlider />
           <OpacitySlider />
         </ColorPicker>
-        <View style={{margin: 'auto', width: '50%'}}>
+        <View style={tw`mx-auto w-1/2`}>
           <Button title="Pick Color" onPress={() => setShowModal(false)} />
         </View>
-      </Modal> */}
+      </Modal>
       <StatusBar style="auto" />
     </View>
   );
@@ -187,80 +230,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  formContainer: {
-    gap: 10,
-    width: '100%',
-    backgroundColor: "white",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    padding: 20,
-    marginTop: 10,
-    marginBottom: 5,
-    margin: 3,
-    borderRadius: 10,
-  },
-  input: {
-    backgroundColor: "#B9B9B9",
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  colorPickerButtonContainer: {
-    width: "100%",
-    alignSelf: "center",
-  },
-  addButton: {
-    backgroundColor: "#260d33",
-    padding: 5,
-    borderRadius: 10,
-  },
-  addButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 20,
-    textAlign: "center",
-    textTransform: "uppercase",
-  },
-  heading: {
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "bold",
-    borderBottomWidth: 2,
-    margin: 4,
-  },
-  listItem: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "stretch",
     justifyContent: "space-between",
-    alignSelf: 'center',
-    margin: 10,
-    padding: 5,
-    borderRadius: 5,
-    width: '100%'
-  },
-  listItemText: {
-    color: "black",
-    flex: 1,
-    margin: 4,
-  },
-  editButton: {
-    backgroundColor: "#260d33",
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 5
-  },
-  deleteButton: {
-    backgroundColor: "#260d33",
-    padding: 10,
-    borderRadius: 10,
-  },
-  modalContainer: {
-    width: "100%",
-    height: "100%",
+    margin: 8,
   },
 });
